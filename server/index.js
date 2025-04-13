@@ -7,7 +7,6 @@ const fs = require('fs').promises;
 const storage = require('./storage');
 const blockchain = require('./blockchain');
 const crypto = require('crypto');
-// const { fileExists } = require('./utils'); // Assuming you have a utility function for file existence check
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
