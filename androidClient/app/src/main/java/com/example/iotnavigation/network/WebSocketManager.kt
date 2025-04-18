@@ -9,46 +9,56 @@ import kotlinx.coroutines.flow.StateFlow
 import okhttp3.*
 import org.json.JSONObject
 import java.util.*
+import java.util.concurrent.TimeUnit
 import android.util.Base64
-import com.example.iotnavigation.camera.CameraManager
 
 class WebSocketManager(
-    private val serverUrl: String = "ws://192.168.1.42:3000",
-    private val deviceId: String = UUID.randomUUID().toString(),
+    val serverAddress: String = "192.168.1.42:3000", // Default, but can be overridden
     private val onLog: ((String) -> Unit)? = null
 ) {
+    private val TAG = "WebSocketManager"
     private var webSocket: WebSocket? = null
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .readTimeout(0, TimeUnit.MILLISECONDS) // No timeout for WebSockets
+        .build()
     private val _connectionState = MutableStateFlow(false)
     val connectionState: StateFlow<Boolean> = _connectionState
+    private val deviceId = UUID.randomUUID().toString()
 
     fun connect() {
         val request = Request.Builder()
-            .url(serverUrl)
+            .url("ws://$serverAddress")
             .build()
+
+        onLog?.invoke("Connecting to server at ws://$serverAddress...")
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                onLog?.invoke("WebSocket connection established")
                 _connectionState.value = true
-                // Register device with server
-                sendMessage(SensorMessage("register", deviceId))
+
+                // Register the device with the server
+                val registrationMessage = JSONObject().apply {
+                    put("type", "register")
+                    put("deviceId", deviceId)
+                }.toString()
+
+                webSocket.send(registrationMessage)
+                onLog?.invoke("Registered with device ID: $deviceId")
             }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                val errorMessage = "Error: ${t.message}"
-                Log.e("WebSocket", errorMessage)
-                onLog?.invoke(errorMessage)
-                _connectionState.value = false
-                // Attempt to reconnect after delay
-                Thread.sleep(5000)
-                connect()
-            }
-
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                _connectionState.value = false
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                onLog?.invoke("Received message: $text")
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                onLog?.invoke("WebSocket closed: $reason")
+                _connectionState.value = false
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                onLog?.invoke("WebSocket failure: ${t.message}")
+                Log.e(TAG, "WebSocket failure", t)
                 _connectionState.value = false
             }
         })
@@ -91,7 +101,7 @@ class WebSocketManager(
             webSocket?.send(jsonMessage.toString())
         } catch (e: Exception) {
             val errorMessage = "Error sending message: ${e.message}"
-            Log.e("WebSocket", errorMessage)
+            Log.e(TAG, errorMessage)
             onLog?.invoke(errorMessage)
         }
     }
@@ -99,27 +109,27 @@ class WebSocketManager(
     fun sendCameraFrame(imageBytes: ByteArray) {
         try {
             if (imageBytes.isEmpty()) {
-                Log.e("WebSocketManager", "Empty image data, not sending")
+                Log.e(TAG, "Empty image data, not sending")
                 return
             }
-            
-            Log.d("WebSocketManager", "Sending camera frame: ${imageBytes.size} bytes")
-            
+
+            Log.d(TAG, "Sending camera frame: ${imageBytes.size} bytes")
+
             // Convert to Base64
             val base64Image = Base64.encodeToString(imageBytes, Base64.DEFAULT)
-            
+
             // Create message
             val message = JSONObject().apply {
                 put("type", "camera")
                 put("image", base64Image)
                 put("timestamp", System.currentTimeMillis())
             }
-            
+
             // Send over WebSocket
             webSocket?.send(message.toString())
-            Log.d("WebSocketManager", "Camera frame sent successfully")
+            Log.d(TAG, "Camera frame sent successfully")
         } catch (e: Exception) {
-            Log.e("WebSocketManager", "Failed to send camera frame", e)
+            Log.e(TAG, "Failed to send camera frame", e)
         }
     }
 }

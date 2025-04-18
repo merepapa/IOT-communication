@@ -211,7 +211,8 @@
     <div class="devices" id="devices"></div>
 
     <script>
-        const ws = new WebSocket('ws://192.168.1.42:3000');
+        // Replace hardcoded WebSocket URL with dynamic one
+        const ws = new WebSocket(`ws://${window.location.hostname}:${window.location.port || 3000}`);
         const devicesContainer = document.getElementById('devices');
         const deviceStates = new Map(); // Store expanded state of devices
         const deviceData = new Map(); // Store historical data for charts

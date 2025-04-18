@@ -57,8 +57,23 @@ class CameraManager(private val context: Context) {
     }
     
     fun stopCamera() {
-        closeCamera()
-        stopBackgroundThread()
+        try {
+            Log.d(TAG, "Stopping camera")
+            closeCamera()
+            stopBackgroundThread()
+            Log.d(TAG, "Camera stopped successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping camera", e)
+            // Try to ensure resources are released even if there was an error
+            try {
+                cameraDevice?.close()
+                cameraDevice = null
+                captureSession?.close()
+                captureSession = null
+                imageReader?.close()
+                imageReader = null
+            } catch (ignored: Exception) {}
+        }
     }
     
     private fun startBackgroundThread() {

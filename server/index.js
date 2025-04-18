@@ -311,6 +311,29 @@ app.get('/api/devices/:deviceId/history', async (req, res) => {
 });
 
 const PORT = 3000;
-server.listen(PORT, () => {
-    console.log(`Server running on http://192.168.1.42:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+    // Log all available IP addresses for easier connection
+    const { networkInterfaces } = require('os');
+    const nets = networkInterfaces();
+    const results = {};
+
+    for (const name of Object.keys(nets)) {
+        for (const net of nets[name]) {
+            // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
+            if (net.family === 'IPv4' && !net.internal) {
+                if (!results[name]) {
+                    results[name] = [];
+                }
+                results[name].push(net.address);
+            }
+        }
+    }
+
+    console.log('Server running on port', PORT);
+    console.log('Available on:');
+    for (const [interface, addresses] of Object.entries(results)) {
+        for (const addr of addresses) {
+            console.log(`  http://${addr}:${PORT}`);
+        }
+    }
 });
